@@ -93,6 +93,100 @@ On first run you’ll be prompted for:
 
 ---
 
+## 📱 Flutter Version (v2.0)
+
+A cross-platform Flutter implementation is available in the `flutter_app/` directory, providing support for **iOS and Android** from a single codebase.
+
+### Features
+- All features from the native iOS app
+- Low battery detection (prevents false readings when device battery is low)
+- Cross-platform: iOS, Android (and potentially Web, macOS, Windows, Linux)
+- Red logo to differentiate from native iOS app (optional styling choice)
+
+> **Note:** Currently only tested on iPhone. Android testing pending.
+
+### Build from source (Flutter)
+
+#### Prerequisites
+1. Install Flutter: [flutter.dev/docs/get-started/install](https://flutter.dev/docs/get-started/install)
+2. Verify installation: `flutter doctor`
+
+#### iOS Build
+```bash
+git clone https://github.com/ashok-raj/LibreArm.git
+cd LibreArm/flutter_app
+
+# Install dependencies
+flutter pub get
+
+# Install CocoaPods dependencies
+cd ios && pod install && cd ..
+
+# Run on connected iPhone
+flutter run -d <device-id>
+
+# Or build release IPA
+flutter build ios --release
+```
+
+Requirements:
+- macOS with Xcode 15+
+- CocoaPods (`brew install cocoapods`)
+- Physical iOS device (BLE doesn't work in simulator)
+- Apple Developer account for device deployment
+
+#### Android Build
+```bash
+git clone https://github.com/ashok-raj/LibreArm.git
+cd LibreArm/flutter_app
+
+# Install dependencies
+flutter pub get
+
+# Run on connected Android device
+flutter run -d <device-id>
+
+# Or build release APK
+flutter build apk --release
+```
+
+Requirements:
+- Android Studio with Android SDK
+- Physical Android device (for BLE testing)
+
+#### Useful Commands
+```bash
+flutter devices          # List connected devices
+flutter run              # Run in debug mode
+flutter run --release    # Run in release mode
+flutter build apk        # Build Android APK
+flutter build ios        # Build iOS app
+```
+
+For more details, see the official [Flutter documentation](https://docs.flutter.dev/).
+
+### Code Comparison
+
+For transparency, here's how the Flutter codebase compares to the native iOS app:
+
+| | Native iOS (Swift) | Flutter (Dart) |
+|---|---|---|
+| **Total Lines** | 612 | 822 |
+| **Difference** | - | +210 lines (+34%) |
+
+**Breakdown by file:**
+
+| Native iOS | Lines | Flutter | Lines |
+|---|---|---|---|
+| BPClient.swift | 401 | bp_client.dart | 391 |
+| ContentView.swift | 167 | main.dart | 335 |
+| Health.swift | 29 | health_service.dart | 75 |
+| LibreArmApp.swift | 15 | bp_reading.dart | 21 |
+
+The core BLE logic is nearly identical. The UI code is larger in Flutter due to more verbose widget syntax, but the tradeoff is cross-platform support.
+
+---
+
 ## 🔧 Development Notes
 
 - **Language & UI**: Swift + SwiftUI
