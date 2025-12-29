@@ -44,14 +44,24 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialize();
+    });
   }
 
   Future<void> _initialize() async {
+    if (!mounted) return;
+
     final health = context.read<HealthService>();
     final bp = context.read<BPClient>();
 
-    await health.requestAuth();
+    try {
+      await health.requestAuth();
+    } catch (e) {
+      // HealthKit may not be available, continue without it
+    }
+
+    if (!mounted) return;
 
     bp.onFinalReading = (reading) {
       if (_autoSaveToHealth) {

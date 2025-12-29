@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/bp_reading.dart';
 
@@ -85,10 +87,44 @@ class BPClient extends ChangeNotifier {
 
   /// Begin scanning/connecting to the cuff
   Future<void> startConnect({int timeout = 30}) async {
+    // Request permissions (required on Android)
+    if (Platform.isAndroid) {
+      // Request location permission (required for BLE scanning on Android)
+      final locationStatus = await Permission.locationWhenInUse.request();
+      if (!locationStatus.isGranted) {
+        status = 'Location permission required for Bluetooth';
+        notifyListeners();
+        return;
+      }
+
+      // Request Bluetooth permissions (Android 12+)
+      final bluetoothScan = await Permission.bluetoothScan.request();
+      final bluetoothConnect = await Permission.bluetoothConnect.request();
+      if (!bluetoothScan.isGranted || !bluetoothConnect.isGranted) {
+        status = 'Bluetooth permission required';
+        notifyListeners();
+        return;
+      }
+    }
+
+    // Check if Bluetooth is supported
+    try {
+      if (await FlutterBluePlus.isSupported == false) {
+        status = 'Bluetooth not supported';
+        notifyListeners();
+        return;
+      }
+
+      // Turn on Bluetooth if off (shows system dialog)
+      await FlutterBluePlus.turnOn();
+    } catch (e) {
+      // turnOn() may fail on iOS or if user denies
+    }
+
     // Check Bluetooth state
     final state = await FlutterBluePlus.adapterState.first;
     if (state != BluetoothAdapterState.on) {
-      status = 'Bluetooth unavailable';
+      status = 'Bluetooth unavailable - please enable';
       notifyListeners();
       return;
     }
@@ -159,43 +195,71 @@ class BPClient extends ChangeNotifier {
     });
 
     try {
-      await device.connect(license: License.free);
+      await device.connect(
+        license: License.free,
+        timeout: const Duration(seconds: 15),
+        autoConnect: Platform.isAndroid,  // Use autoConnect on Android for more stable connection
+      );
       isConnected = true;
       status = 'Connected — discovering…';
       notifyListeners();
+
+      // Android-specific setup before service discovery
+      if (Platform.isAndroid) {
+        await Future.delayed(const Duration(milliseconds: 1500));
+        try {
+          await device.requestMtu(512);
+        } catch (_) {
+          // MTU request may fail, continue anyway
+        }
+      }
 
       await _discoverServices(device);
     } catch (e) {
       isConnected = false;
       canMeasure = false;
-      status = 'Failed to connect';
+      status = 'Failed to connect: $e';
       notifyListeners();
     }
   }
 
-  Future<void> _discoverServices(BluetoothDevice device) async {
-    final services = await device.discoverServices();
+  Future<void> _discoverServices(BluetoothDevice device, {int attempt = 1}) async {
+    const maxAttempts = 3;
+    try {
+      final services = await device.discoverServices();
 
-    for (final service in services) {
-      if (service.uuid == _bpsServiceUuid) {
-        for (final char in service.characteristics) {
-          if (char.uuid == _measurementUuid) {
-            _measurementChar = char;
-            await char.setNotifyValue(true);
-            _measurementSubscription?.cancel();
-            _measurementSubscription = char.onValueReceived.listen(_parseBPM);
-          } else if (char.uuid == _controlUuid) {
-            _controlChar = char;
+      for (final service in services) {
+        if (service.uuid == _bpsServiceUuid) {
+          for (final char in service.characteristics) {
+            if (char.uuid == _measurementUuid) {
+              _measurementChar = char;
+              await char.setNotifyValue(true);
+              _measurementSubscription?.cancel();
+              _measurementSubscription = char.onValueReceived.listen(_parseBPM);
+            } else if (char.uuid == _controlUuid) {
+              _controlChar = char;
+            }
           }
         }
       }
-    }
 
-    canMeasure = _measurementChar != null && _controlChar != null;
-    if (canMeasure) {
-      status = 'Connected — ready';
+      canMeasure = _measurementChar != null && _controlChar != null;
+      if (canMeasure) {
+        status = 'Connected — ready';
+      } else {
+        status = 'Device found but service not available';
+      }
+      notifyListeners();
+    } catch (e) {
+      if (attempt < maxAttempts) {
+        status = 'Discovery retry ($attempt/$maxAttempts)…';
+        notifyListeners();
+        await Future.delayed(const Duration(milliseconds: 1000));
+        return _discoverServices(device, attempt: attempt + 1);
+      }
+      status = 'Service discovery failed: $e';
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// Start measurement
