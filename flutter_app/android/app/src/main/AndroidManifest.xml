@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
 
     <application
-        android:label="libre_arm"
+        android:label="LibreArm"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

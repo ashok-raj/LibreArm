@@ -124,7 +124,7 @@ struct ContentView: View {
 
                 // Footer
                 VStack(spacing: 6) {
-                    Text("Developed by Paul Taylor")
+                    Text("Developed by Paul Taylor & Ashok Raj")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Link("GitHub: ptylr/LibreArm",
